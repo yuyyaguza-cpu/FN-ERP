@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบจัดการบริษัท</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --primary:#4f46e5;--primary-light:#6366f1;--primary-dark:#3730a3;
+    --success:#10b981;--warning:#f59e0b;--danger:#ef4444;--info:#3b82f6;
+    --bg:#f1f5f9;--card:#ffffff;--text:#1e293b;--text-muted:#64748b;
+    --border:#e2e8f0;--shadow:0 1px 3px rgba(0,0,0,.1);
+    --shadow-md:0 4px 6px rgba(0,0,0,.07);--shadow-lg:0 10px 15px rgba(0,0,0,.1);
+    --radius:12px;--radius-sm:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+  /* SETUP OVERLAY */
+  .setup-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e1b4b,var(--primary));z-index:2000;display:flex;align-items:center;justify-content:center}
+  .setup-card{background:#fff;border-radius:20px;padding:40px;width:460px;box-shadow:var(--shadow-lg)}
+  .setup-card h2{font-size:22px;font-weight:800;margin-bottom:6px}
+  .setup-card .subtitle{color:var(--text-muted);font-size:13px;margin-bottom:24px;line-height:1.6}
+  .step-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:700;margin-right:8px;flex-shrink:0}
+  .setup-steps{margin-bottom:20px}
+  .setup-step{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;font-size:13px;line-height:1.5}
+  .setup-step a{color:var(--primary);font-weight:600}
+
+  /* LOGIN */
+  .login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,var(--primary-dark),var(--primary));z-index:1000;display:flex;align-items:center;justify-content:center}
+  .login-card{background:#fff;border-radius:20px;padding:40px;width:420px;box-shadow:var(--shadow-lg);text-align:center}
+  .login-emoji{font-size:56px;display:block;margin-bottom:16px}
+  .login-card h2{font-size:24px;font-weight:800;margin-bottom:6px}
+  .login-card p{color:var(--text-muted);margin-bottom:24px;font-size:14px}
+
+  /* SIDEBAR */
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:var(--primary-dark);color:#fff;display:flex;flex-direction:column;z-index:100;box-shadow:var(--shadow-lg)}
+  .sidebar-logo{padding:24px 20px 16px;border-bottom:1px solid rgba(255,255,255,.1)}
+  .sidebar-logo h1{font-size:18px;font-weight:700}
+  .sidebar-logo p{font-size:12px;opacity:.6;margin-top:2px}
+  .sidebar-nav{flex:1;padding:12px 0}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;color:rgba(255,255,255,.75);transition:all .2s;font-size:14px;font-weight:500}
+  .nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
+  .nav-item.active{background:rgba(255,255,255,.15);color:#fff;border-right:3px solid #fff}
+  .nav-item .icon{font-size:18px;width:24px;text-align:center}
+  .sidebar-user{padding:16px 20px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+  .user-avatar-sm{width:36px;height:36px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+  .sidebar-user .user-info{flex:1;min-width:0}
+  .sidebar-user .user-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sidebar-user .user-sub{font-size:11px;opacity:.6}
+  .change-user-btn{background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:16px;padding:4px}
+  .change-user-btn:hover{color:#fff}
+
+  /* MAIN */
+  .main{margin-left:240px;min-height:100vh}
+  .topbar{position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)}
+  .topbar-title{font-size:20px;font-weight:700}
+  .notif-btn{position:relative;background:none;border:none;cursor:pointer;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-muted);transition:background .2s}
+  .notif-btn:hover{background:var(--bg)}
+  .notif-badge{position:absolute;top:4px;right:4px;background:var(--danger);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+  .content{padding:24px}
+
+  /* CARDS */
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border)}
+  .card-header{padding:20px 24px 0;display:flex;align-items:center;justify-content:space-between}
+  .card-title{font-size:16px;font-weight:700}
+  .card-body{padding:20px 24px}
+
+  /* STATS */
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .stat-card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);border:1px solid var(--border);display:flex;align-items:center;gap:16px}
+  .stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+  .stat-num{font-size:28px;font-weight:800;line-height:1}
+  .stat-label{font-size:13px;color:var(--text-muted);margin-top:4px}
+
+  /* GRID */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+  /* BUTTONS */
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+  .btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-light)}
+  .btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#dc2626}
+  .btn-outline{background:#fff;color:var(--text);border:1px solid var(--border)}.btn-outline:hover{background:var(--bg)}
+  .btn-sm{padding:5px 10px;font-size:12px}
+  .btn-icon{padding:6px;border-radius:6px;background:none;border:1px solid var(--border);cursor:pointer;font-size:14px;transition:all .2s}
+  .btn-icon:hover{background:var(--bg)}
+
+  /* FORM */
+  .form-group{margin-bottom:16px}
+  .form-label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+  .form-control{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;color:var(--text);background:#fff;outline:none;transition:border-color .2s}
+  .form-control:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+  select.form-control{cursor:pointer}
+  textarea.form-control{resize:vertical;min-height:80px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* TODO */
+  .todo-item{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .todo-item:last-child{border-bottom:none}
+  .todo-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);cursor:pointer;flex-shrink:0;transition:all .2s;margin-top:2px;display:flex;align-items:center;justify-content:center}
+  .todo-check.done{background:var(--success);border-color:var(--success);color:#fff;font-size:12px}
+  .todo-check.done::after{content:'✓'}
+  .todo-body{flex:1;min-width:0}
+  .todo-title{font-size:14px;font-weight:600}
+  .todo-title.done{text-decoration:line-through;color:var(--text-muted)}
+  .todo-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .todo-actions{display:flex;gap:4px;flex-shrink:0}
+
+  /* BADGE */
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .badge-blue{background:#dbeafe;color:#1d4ed8}.badge-green{background:#d1fae5;color:#065f46}
+  .badge-red{background:#fee2e2;color:#991b1b}.badge-gray{background:#f1f5f9;color:#475569}
+  .badge-purple{background:#ede9fe;color:#5b21b6}
+
+  /* EMP CARD */
+  .emp-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border);padding:20px;text-align:center;transition:box-shadow .2s}
+  .emp-card:hover{box-shadow:var(--shadow-md)}
+  .emp-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;margin:0 auto 12px}
+  .emp-name{font-size:15px;font-weight:700}
+  .emp-pos{font-size:12px;color:var(--text-muted);margin-top:2px}
+  .emp-dept{font-size:11px;color:var(--primary);background:#ede9fe;padding:2px 8px;border-radius:20px;margin-top:6px;display:inline-block}
+  .emp-actions{display:flex;gap:8px;justify-content:center;margin-top:14px}
+
+  /* WORK CARD */
+  .work-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden;transition:box-shadow .2s}
+  .work-card:hover{box-shadow:var(--shadow-md)}
+  .work-preview{height:160px;background:linear-gradient(135deg,#ede9fe,#dbeafe);display:flex;align-items:center;justify-content:center;font-size:48px;overflow:hidden}
+  .work-preview img{width:100%;height:100%;object-fit:cover}
+  .work-body{padding:16px}
+  .work-title{font-size:14px;font-weight:700;margin-bottom:4px}
+  .work-desc{font-size:12px;color:var(--text-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .work-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .work-author{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+
+  /* NOTIF */
+  .notif-panel{position:fixed;top:64px;right:0;width:360px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:200;max-height:calc(100vh - 80px);overflow-y:auto;transform:translateY(-10px) scale(.98);opacity:0;pointer-events:none;transition:all .2s}
+  .notif-panel.open{transform:translateY(0) scale(1);opacity:1;pointer-events:all}
+  .notif-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .notif-header h3{font-size:15px;font-weight:700}
+  .notif-item{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start;transition:background .15s}
+  .notif-item:hover{background:var(--bg)}
+  .notif-item.unread{background:#f0f0ff}
+  .notif-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px}
+  .notif-dot.todo{background:var(--primary)}.notif-dot.success{background:var(--success)}
+  .notif-dot.work{background:var(--info)}.notif-dot.employee,.notif-dot.warning{background:var(--warning)}
+  .notif-dot.info{background:var(--text-muted)}
+  .notif-text{flex:1;font-size:13px}
+  .notif-time{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+  /* MODAL */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+  .modal-overlay.open{opacity:1;pointer-events:all}
+  .modal{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:scale(.95);transition:transform .2s}
+  .modal-overlay.open .modal{transform:scale(1)}
+  .modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .modal-title{font-size:18px;font-weight:700}
+  .modal-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-muted)}
+  .modal-body{padding:24px}
+  .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+
+  /* PAGES */
+  .page{display:none}.page.active{display:block}
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .section-title{font-size:18px;font-weight:700}
+  .tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:20px}
+  .tab{padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-muted);transition:all .2s}
+  .tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+  .tab:hover{color:var(--text)}
+
+  /* FILE DROP */
+  .file-drop{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:32px;text-align:center;cursor:pointer;transition:all .2s}
+  .file-drop:hover,.file-drop.dragging{border-color:var(--primary);background:#f0f0ff}
+  .file-drop .drop-icon{font-size:32px;margin-bottom:8px}
+
+  /* EMPTY STATE */
+  .empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+  .empty-state .empty-icon{font-size:48px;margin-bottom:12px}
+  .empty-state h3{font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px}
+
+  /* TOAST */
+  .toast-container{position:fixed;bottom:24px;right:24px;z-index:500;display:flex;flex-direction:column;gap:8px}
+  .toast{background:var(--text);color:#fff;padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;box-shadow:var(--shadow-lg);animation:slideIn .3s ease;display:flex;align-items:center;gap:8px}
+  .toast.success{background:var(--success)}.toast.error{background:var(--danger)}
+  @keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+  /* LOADING */
+  .loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.8);z-index:5000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+  .spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  @media(max-width:1024px){.stats-grid{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.grid-3{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:768px){
+    .sidebar{width:60px}
+    .sidebar-logo h1,.sidebar-logo p,.nav-item span:not(.icon),.sidebar-user .user-info{display:none}
+    .main{margin-left:60px}.nav-item{justify-content:center;padding:12px}
+    .stats-grid{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="font-size:14px;color:var(--text-muted)">กำลังโหลด...</div>
+</div>
+
+<!-- SETUP OVERLAY -->
+<div class="setup-overlay" id="setupOverlay" style="display:none">
+  <div class="setup-card">
+    <div style="font-size:48px;margin-bottom:12px">⚙️</div>
+    <h2>ตั้งค่า Supabase</h2>
+    <p class="subtitle">ทำครั้งเดียว — ข้อมูลจะถูกบันทึกในเครื่องนี้</p>
+
+    <div class="setup-steps">
+      <div class="setup-step"><span class="step-badge">1</span>ไปที่ <a href="https://supabase.com" target="_blank">supabase.com</a> → สร้าง Project ฟรี</div>
+      <div class="setup-step"><span class="step-badge">2</span>ไปที่ <strong>SQL Editor</strong> → วางโค้ดจากไฟล์ <strong>supabase_setup.sql</strong> → กด Run</div>
+      <div class="setup-step"><span class="step-badge">3</span>ไปที่ <strong>Settings → API</strong> → คัดลอก URL และ anon key มาใส่ด้านล่าง</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Project URL</label>
+      <input type="text" class="form-control" id="sbUrl" placeholder="https://xxxxxxxx.supabase.co">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Anon Key (public)</label>
+      <input type="text" class="form-control" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="saveSupabaseConfig()">🚀 เชื่อมต่อและเริ่มใช้งาน</button>
+    <p style="margin-top:12px;font-size:11px;color:var(--text-muted);text-align:center">ข้อมูลถูกเก็บเฉพาะในเบราว์เซอร์ของคุณเท่านั้น ปลอดภัย 100%</p>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay" style="display:none">
+  <div class="login-card">
+    <span class="login-emoji">🏢</span>
+    <h2>ระบบจัดการบริษัท</h2>
+    <p>เลือกชื่อของคุณหรือเพิ่มพนักงานใหม่</p>
+    <div class="form-group" style="text-align:left">
+      <label class="form-label">เลือกชื่อของคุณ</label>
+      <select class="form-control" id="loginSelect"><option value="">-- กำลังโหลด... --</option></select>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:16px" onclick="loginWithSelected()">🚀 เข้าสู่ระบบ</button>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:12px;color:var(--text-muted)">หรือเพิ่มพนักงานใหม่</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+    <div class="form-group" style="text-align:left">
+      <input type="text" class="form-control" id="newEmpName" placeholder="ชื่อ-นามสกุล *">
+    </div>
+    <div class="form-row" style="margin-bottom:12px">
+      <input type="text" class="form-control" id="newEmpPos" placeholder="ตำแหน่ง">
+      <input type="text" class="form-control" id="newEmpDept" placeholder="แผนก">
+    </div>
+    <button class="btn btn-outline" style="width:100%;justify-content:center" onclick="registerAndLogin()">➕ สร้างบัญชีใหม่ & เข้าสู่ระบบ</button>
+    <button class="btn" style="width:100%;justify-content:center;margin-top:8px;color:var(--text-muted);font-size:12px;background:none" onclick="resetConfig()">⚙️ เปลี่ยน Supabase Project</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo"><h1>🏢 บริษัท</h1><p>ระบบจัดการภายใน</p></div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard"><span class="icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item" onclick="showPage('todos')" id="nav-todos"><span class="icon">✅</span><span>Todo List</span></div>
+    <div class="nav-item" onclick="showPage('works')" id="nav-works"><span class="icon">📁</span><span>ผลงาน</span></div>
+    <div class="nav-item" onclick="showPage('employees')" id="nav-employees"><span class="icon">👥</span><span>พนักงาน</span></div>
+  </nav>
+  <div class="sidebar-user">
+    <div class="user-avatar-sm" id="sidebarAvatar">?</div>
+    <div class="user-info"><div class="user-name" id="sidebarName">-</div><div class="user-sub" id="sidebarPos">-</div></div>
+    <button class="change-user-btn" onclick="logout()" title="เปลี่ยนผู้ใช้">⇄</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="pageTitle">Dashboard</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="notif-btn" onclick="toggleNotifPanel()" id="notifBtn">🔔<div class="notif-badge" id="notifBadge" style="display:none">0</div></button>
+    </div>
+  </div>
+
+  <div class="notif-panel" id="notifPanel">
+    <div class="notif-header"><h3>🔔 การแจ้งเตือน</h3><button class="btn btn-sm btn-outline" onclick="markAllRead()">อ่านทั้งหมด</button></div>
+    <div id="notifList"></div>
+  </div>
+
+  <div class="content">
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon" style="background:#ede9fe">👥</div><div><div class="stat-num" id="statEmp">0</div><div class="stat-label">พนักงาน</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#dbeafe">📋</div><div><div class="stat-num" id="statTodo">0</div><div class="stat-label">งานทั้งหมด</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#d1fae5">✅</div><div><div class="stat-num" id="statDone">0</div><div class="stat-label">งานเสร็จ</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#fef3c7">📁</div><div><div class="stat-num" id="statWork">0</div><div class="stat-label">ผลงาน</div></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-header"><div class="card-title">📋 งานล่าสุด</div><button class="btn btn-sm btn-primary" onclick="showPage('todos')">ดูทั้งหมด</button></div><div class="card-body" id="dashTodos"></div></div>
+        <div class="card"><div class="card-header"><div class="card-title">📁 ผลงานล่าสุด</div><button class="btn btn-sm btn-primary" onclick="showPage('works')">ดูทั้งหมด</button></div><div class="card-body" id="dashWorks"></div></div>
+      </div>
+    </div>
+
+    <!-- TODOS -->
+    <div class="page" id="page-todos">
+      <div class="section-header"><div class="section-title">✅ Todo List</div><button class="btn btn-primary" onclick="openTodoModal()">➕ เพิ่มงาน</button></div>
+      <div class="tabs">
+        <div class="tab active" onclick="filterTodos('all',this)">ทั้งหมด</div>
+        <div class="tab" onclick="filterTodos('pending',this)">รอดำเนินการ</div>
+        <div class="tab" onclick="filterTodos('completed',this)">เสร็จแล้ว</div>
+        <div class="tab" onclick="filterTodos('mine',this)">ของฉัน</div>
+      </div>
+      <div class="card"><div class="card-body" id="todoList"></div></div>
+    </div>
+
+    <!-- WORKS -->
+    <div class="page" id="page-works">
+      <div class="section-header"><div class="section-title">📁 ผลงานทั้งหมด</div><button class="btn btn-primary" onclick="openWorkModal()">➕ อัพโหลดผลงาน</button></div>
+      <div class="tabs">
+        <div class="tab active" onclick="filterWorks('all',this)">ทั้งหมด</div>
+        <div class="tab" onclick="filterWorks('mine',this)">ของฉัน</div>
+      </div>
+      <div class="grid-3" id="workGrid"></div>
+    </div>
+
+    <!-- EMPLOYEES -->
+    <div class="page" id="page-employees">
+      <div class="section-header"><div class="section-title">👥 พนักงานทั้งหมด</div><button class="btn btn-primary" onclick="openEmpModal()">➕ เพิ่มพนักงาน</button></div>
+      <div class="grid-3" id="empGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- MODAL: TODO -->
+<div class="modal-overlay" id="todoModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="todoModalTitle">เพิ่มงานใหม่</div><button class="modal-close" onclick="closeTodoModal()">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="todoId">
+      <div class="form-group"><label class="form-label">หัวข้องาน *</label><input type="text" class="form-control" id="todoTitle" placeholder="ระบุหัวข้องาน"></div>
+      <div class="form-group"><label class="form-label">รายละเอียด</label><textarea class="form-control" id="todoDesc" placeholder="รายละเอียด"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">มอบหมายให้</label><select class="form-control" id="todoAssign"><option value="">ทุกคน</option></select></div>
+        <div class="form-group"><label class="form-label">ความสำคัญ</label><select class="form-control" id="todoPriority"><option value="low">ต่ำ</option><option value="normal" selected>ปกติ</option><option value="high">สูง/ด่วน</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">กำหนดส่ง</label><input type="date" class="form-control" id="todoDue"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeTodoModal()">ยกเลิก</button><button class="btn btn-primary" onclick="saveTodo()">บันทึก</button></div>
+  </div>
+</div>
+
+<!-- MODAL: WORK -->
+<div class="modal-overlay" id="workModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">อัพโหลดผลงาน</div><button class="modal-close" onclick="closeWorkModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">หัวข้อผลงาน *</label><input type="text" class="form-control" id="workTitle" placeholder="ชื่อผลงาน"></div>
+      <div class="form-group"><label class="form-label">รายละเอียด</label><textarea class="form-control" id="workDesc" placeholder="อธิบายผลงาน"></textarea></div>
+      <div class="form-group">
+        <label class="form-label">ไฟล์แนบ (รูปภาพ, เอกสาร)</label>
+        <div class="file-drop" id="fileDrop" onclick="document.getElementById('workFile').click()" ondragover="dragOver(event)" ondrop="dropFile(event)" ondragleave="dragLeave(event)">
+          <div class="drop-icon">📎</div>
+          <p style="font-size:13px"><strong>คลิกหรือลากไฟล์มาวางที่นี่</strong></p>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">JPG, PNG, GIF, PDF, DOC, XLS, TXT (สูงสุด 20MB)</p>
+        </div>
+        <input type="file" id="workFile" style="display:none" accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt" onchange="fileSelected(this)">
+        <div id="filePreview" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;align-items:center;gap:8px"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeWorkModal()">ยกเลิก</button><button class="btn btn-primary" id="uploadBtn" onclick="saveWork()">📤 อัพโหลด</button></div>
+  </div>
+</div>
+
+<!-- MODAL: EMPLOYEE -->
+<div class="modal-overlay" id="empModal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="empModalTitle">เพิ่มพนักงาน</div><button class="modal-close" onclick="closeEmpModal()">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="empId">
+      <div class="form-group"><label class="form-label">ชื่อ-นามสกุล *</label><input type="text" class="form-control" id="empName" placeholder="ชื่อพนักงาน"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">ตำแหน่ง</label><input type="text" class="form-control" id="empPos" placeholder="ตำแหน่ง"></div>
+        <div class="form-group"><label class="form-label">แผนก</label><input type="text" class="form-control" id="empDept" placeholder="แผนก"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeEmpModal()">ยกเลิก</button><button class="btn btn-primary" onclick="saveEmployee()">บันทึก</button></div>
+  </div>
+</div>
+
+<script>
+// ===== GLOBAL ERROR CATCHER =====
+window.onerror = function(msg, src, line, col, err) {
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">🐛</div>
+    <h3 style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px">JavaScript Error</h3>
+    <p style="font-size:13px;color:#ef4444;background:#fee2e2;padding:10px;border-radius:8px;word-break:break-all;text-align:left">${msg}<br><small>Line: ${line}</small></p>
+    <button onclick="location.reload()" style="margin-top:12px;background:#4f46e5;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600">🔄 ลองใหม่</button>
+  </div>`;
+};
+window.addEventListener('unhandledrejection', function(e) {
+  const el = document.getElementById('loadingOverlay');
+  if (el) el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+    <h3 style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px">เชื่อมต่อ Supabase ไม่สำเร็จ</h3>
+    <p style="font-size:13px;color:#ef4444;background:#fee2e2;padding:10px;border-radius:8px;word-break:break-all;text-align:left">${e.reason?.message || String(e.reason)}</p>
+    <p style="font-size:12px;color:#64748b;margin-top:8px">ตรวจสอบ: internet connection, Supabase URL, SQL setup</p>
+    <button onclick="location.reload()" style="margin-top:12px;background:#4f46e5;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600">🔄 ลองใหม่</button>
+  </div>`;
+});
+
+const { createClient } = supabase;
+
+// ===== SUPABASE CONFIG (ตั้งค่าแล้ว) =====
+const SUPABASE_URL = 'https://acnzewqesgyzaoksorck.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjbnpld3Flc2d5emFva3NvcmNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5OTAyMDAsImV4cCI6MjA5NjU2NjIwMH0.B_VzOGPAQWAWGqZneJdxgzutcrHWazIgzxQ8R8zRuns';
+
+let sb = null;
+let currentUser = null;
+let employees = [], todos = [], works = [], notifications = [];
+let currentTodoFilter = 'all', currentWorkFilter = 'all';
+let selectedFile = null;
+
+function saveSupabaseConfig() {
+  const url = document.getElementById('sbUrl').value.trim();
+  const key = document.getElementById('sbKey').value.trim();
+  if (!url || !key) { showToast('กรุณากรอก URL และ Key ให้ครบ', 'error'); return; }
+  if (!url.startsWith('https://')) { showToast('URL ต้องขึ้นต้นด้วย https://', 'error'); return; }
+  document.getElementById('setupOverlay').style.display = 'none';
+  initSupabase(url, key);
+}
+
+function resetConfig() {
+  localStorage.removeItem('companyUser');
+  location.reload();
+}
+
+// ===== INIT =====
+async function boot() {
+  document.getElementById('setupOverlay').style.display = 'none';
+  try {
+    sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(err) {
+    showFatalError('สร้าง Supabase client ไม่ได้: ' + err.message);
+    return;
+  }
+  // ซ่อน loading แล้วแสดง UI ทันที ไม่รอ connection
+  document.getElementById('loadingOverlay').style.display = 'none';
+  checkLogin();
+  // โหลดข้อมูลเบื้องหลัง
+  loadAllData();
+  setupRealtime();
+}
+
+async function loadAllData() {
+  try {
+    await Promise.all([loadEmployees(), loadTodos(), loadWorks(), loadNotifications()]);
+  } catch(err) {
+    showToast('โหลดข้อมูลไม่สำเร็จ: ' + err.message, 'error');
+    console.error(err);
+  }
+}
+
+function showFatalError(msg) {
+  document.getElementById('loadingOverlay').innerHTML = `
+    <div style="text-align:center;max-width:420px;padding:24px;background:#fff;border-radius:16px">
+      <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+      <h3 style="font-size:18px;font-weight:700;color:#1e293b;margin-bottom:8px">เชื่อมต่อ Supabase ไม่สำเร็จ</h3>
+      <p style="font-size:13px;color:#ef4444;background:#fee2e2;padding:10px 14px;border-radius:8px;margin-bottom:12px;word-break:break-all;text-align:left">${msg}</p>
+      <p style="font-size:12px;color:#64748b;margin-bottom:16px;text-align:left">วิธีแก้:<br>
+        1. ตรวจสอบ internet connection<br>
+        2. ตรวจสอบว่ารัน <b>supabase_setup.sql</b> ใน SQL Editor แล้ว<br>
+        3. ตรวจสอบ Supabase URL และ Key ถูกต้อง
+      </p>
+      <button onclick="location.reload()" style="background:#4f46e5;color:#fff;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600">🔄 ลองใหม่</button>
+    </div>`;
+  document.getElementById('loadingOverlay').style.display = 'flex';
+}
+
+// ===== REALTIME =====
+function setupRealtime() {
+  sb.channel('db-changes')
+    .on('postgres_changes', {event:'*',schema:'public',table:'employees'}, () => loadEmployees())
+    .on('postgres_changes', {event:'*',schema:'public',table:'todos'}, () => loadTodos())
+    .on('postgres_changes', {event:'*',schema:'public',table:'works'}, () => loadWorks())
+    .on('postgres_changes', {event:'INSERT',schema:'public',table:'notifications'}, (payload) => {
+      const n = payload.new;
+      notifications.unshift(n);
+      updateNotifBadge(); renderNotifications();
+      showToast(n.message, n.type === 'success' ? 'success' : 'info');
+    })
+    .subscribe();
+}
+
+// ===== DATA LOADING =====
+async function loadEmployees() {
+  const { data } = await sb.from('employees').select('*').order('created_at', {ascending:false});
+  employees = data || []; renderEmployees(); updateTodoAssignSelect(); updateStats(); renderDashboard();
+}
+async function loadTodos() {
+  const { data } = await sb.from('todos').select('*').order('created_at', {ascending:false});
+  todos = data || []; renderTodos(); updateStats(); renderDashboard();
+}
+async function loadWorks() {
+  const { data } = await sb.from('works').select('*').order('created_at', {ascending:false});
+  works = data || []; renderWorks(); updateStats(); renderDashboard();
+}
+async function loadNotifications() {
+  const { data } = await sb.from('notifications').select('*').order('created_at', {ascending:false}).limit(50);
+  notifications = data || []; updateNotifBadge(); renderNotifications();
+}
+
+// ===== NOTIFICATION HELPER =====
+async function addNotif(message, type='info', relatedId='') {
+  await sb.from('notifications').insert({ message, type, related_id: relatedId, is_read: false });
+}
+
+// ===== LOGIN =====
+function checkLogin() {
+  const saved = localStorage.getItem('companyUser');
+  if (saved) { currentUser = JSON.parse(saved); setCurrentUser(currentUser); }
+  else showLoginOverlay();
+}
+function showLoginOverlay() { document.getElementById('loginOverlay').style.display = 'flex'; populateLoginSelect(); }
+function populateLoginSelect() {
+  const sel = document.getElementById('loginSelect');
+  sel.innerHTML = '<option value="">-- เลือกชื่อของคุณ --</option>' +
+    employees.map(e => `<option value="${e.id}">${esc(e.name)}${e.position ? ' (' + esc(e.position) + ')' : ''}</option>`).join('');
+}
+function loginWithSelected() {
+  const id = document.getElementById('loginSelect').value;
+  if (!id) { showToast('กรุณาเลือกชื่อ', 'error'); return; }
+  const emp = employees.find(e => e.id === id);
+  if (emp) { setCurrentUser(emp); localStorage.setItem('companyUser', JSON.stringify(emp)); document.getElementById('loginOverlay').style.display = 'none'; }
+}
+async function registerAndLogin() {
+  const name = document.getElementById('newEmpName').value.trim();
+  if (!name) { showToast('กรุณาระบุชื่อ', 'error'); return; }
+  const { data, error } = await sb.from('employees').insert({
+    name, position: document.getElementById('newEmpPos').value.trim(),
+    department: document.getElementById('newEmpDept').value.trim()
+  }).select().single();
+  if (error) { showToast('เกิดข้อผิดพลาด: ' + error.message, 'error'); return; }
+  await addNotif(`เพิ่มพนักงานใหม่: ${name}`, 'employee', data.id);
+  setCurrentUser(data); localStorage.setItem('companyUser', JSON.stringify(data));
+  document.getElementById('loginOverlay').style.display = 'none';
+  showToast(`ยินดีต้อนรับ ${name}! 🎉`, 'success');
+}
+function setCurrentUser(emp) {
+  currentUser = emp;
+  document.getElementById('sidebarName').textContent = emp.name;
+  document.getElementById('sidebarPos').textContent = emp.position || 'พนักงาน';
+  document.getElementById('sidebarAvatar').textContent = emp.name.charAt(0);
+}
+function logout() { localStorage.removeItem('companyUser'); currentUser = null; showLoginOverlay(); }
+
+// ===== NAV =====
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.getElementById('nav-' + page).classList.add('active');
+  const t = { dashboard:'Dashboard', todos:'Todo List', works:'ผลงาน', employees:'พนักงาน' };
+  document.getElementById('pageTitle').textContent = t[page]; closeNotifPanel();
+}
+
+// ===== STATS & DASHBOARD =====
+function updateStats() {
+  document.getElementById('statEmp').textContent = employees.length;
+  document.getElementById('statTodo').textContent = todos.length;
+  document.getElementById('statDone').textContent = todos.filter(t => t.status === 'completed').length;
+  document.getElementById('statWork').textContent = works.length;
+}
+function renderDashboard() {
+  document.getElementById('dashTodos').innerHTML = todos.slice(0,5).length ? todos.slice(0,5).map(t => `
+    <div class="todo-item"><div style="flex:1">
+      <div class="todo-title ${t.status==='completed'?'done':''}">${esc(t.title)}</div>
+      <div class="todo-meta">
+        ${t.status==='completed'?'<span class="badge badge-green">✅ เสร็จ</span>':'<span class="badge badge-blue">🔄 รอ</span>'}
+        <span class="badge badge-gray">👤 ${esc(t.assigned_name||'ทุกคน')}</span>
+        ${t.priority==='high'?'<span class="badge badge-red">🔴 ด่วน</span>':''}
+      </div>
+    </div></div>`).join('') : '<div class="empty-state"><div class="empty-icon">📋</div><h3>ยังไม่มีงาน</h3></div>';
+  document.getElementById('dashWorks').innerHTML = works.slice(0,4).length ? works.slice(0,4).map(w => `
+    <div class="todo-item">
+      <div style="font-size:24px">${fileIcon(w.file_type)}</div>
+      <div style="flex:1"><div class="todo-title">${esc(w.title)}</div>
+        <div class="todo-meta"><span class="badge badge-purple">👤 ${esc(w.employee_name)}</span><span class="badge badge-gray">${fmtDate(w.created_at)}</span></div>
+      </div>
+    </div>`).join('') : '<div class="empty-state"><div class="empty-icon">📁</div><h3>ยังไม่มีผลงาน</h3></div>';
+}
+
+// ===== TODOS =====
+function renderTodos() {
+  let f = [...todos];
+  if (currentTodoFilter === 'pending') f = f.filter(t => t.status !== 'completed');
+  if (currentTodoFilter === 'completed') f = f.filter(t => t.status === 'completed');
+  if (currentTodoFilter === 'mine' && currentUser) f = f.filter(t => t.assigned_to === currentUser.id || !t.assigned_to);
+  const el = document.getElementById('todoList');
+  el.innerHTML = f.length ? f.map(t => {
+    const done = t.status === 'completed';
+    const due = t.due_date ? `<span class="badge ${isOverdue(t.due_date)&&!done?'badge-red':'badge-gray'}">📅 ${t.due_date}</span>` : '';
+    const pb = t.priority==='high'?'<span class="badge badge-red">🔴 ด่วน</span>':t.priority==='low'?'<span class="badge badge-green">🟢 ต่ำ</span>':'';
+    return `<div class="todo-item">
+      <div class="todo-check ${done?'done':''}" onclick="toggleTodo('${t.id}',${done})"></div>
+      <div class="todo-body">
+        <div class="todo-title ${done?'done':''}">${esc(t.title)}</div>
+        ${t.description?`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(t.description)}</div>`:''}
+        <div class="todo-meta">${done?'<span class="badge badge-green">✅ เสร็จ</span>':'<span class="badge badge-blue">🔄 รอ</span>'}
+          <span class="badge badge-purple">👤 ${esc(t.assigned_name||'ทุกคน')}</span>${due}${pb}
+          ${t.created_by_name?`<span class="badge badge-gray" style="font-size:10px">โดย ${esc(t.created_by_name)}</span>`:''}
+        </div>
+      </div>
+      <div class="todo-actions">
+        <button class="btn-icon" onclick="editTodo('${t.id}')">✏️</button>
+        <button class="btn-icon" onclick="deleteTodo('${t.id}')" style="color:var(--danger)">🗑️</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><div class="empty-icon">✅</div><h3>ไม่มีงานในหมวดนี้</h3></div>';
+}
+function filterTodos(f,el){currentTodoFilter=f;document.querySelectorAll('#page-todos .tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderTodos();}
+async function toggleTodo(id, done) {
+  const now = done ? null : new Date().toISOString();
+  const status = done ? 'pending' : 'completed';
+  await sb.from('todos').update({status, completed_at: now}).eq('id', id);
+  const todo = todos.find(t => t.id === id);
+  if (!done && todo) await addNotif(`✅ งานเสร็จแล้ว: ${todo.title}`, 'success', id);
+  await loadTodos();
+}
+async function deleteTodo(id){if(!confirm('ลบงานนี้?'))return;await sb.from('todos').delete().eq('id',id);await loadTodos();showToast('ลบงานแล้ว');}
+
+function openTodoModal(todo=null){
+  document.getElementById('todoModalTitle').textContent = todo ? 'แก้ไขงาน' : 'เพิ่มงานใหม่';
+  document.getElementById('todoId').value = todo?.id || '';
+  document.getElementById('todoTitle').value = todo?.title || '';
+  document.getElementById('todoDesc').value = todo?.description || '';
+  document.getElementById('todoPriority').value = todo?.priority || 'normal';
+  document.getElementById('todoDue').value = todo?.due_date || '';
+  updateTodoAssignSelect(todo?.assigned_to);
+  document.getElementById('todoModal').classList.add('open');
+}
+function closeTodoModal(){document.getElementById('todoModal').classList.remove('open');}
+function editTodo(id){openTodoModal(todos.find(t=>t.id===id));}
+function updateTodoAssignSelect(sel=''){
+  const el=document.getElementById('todoAssign');if(!el)return;
+  el.innerHTML=`<option value="">ทุกคน</option>`+employees.map(e=>`<option value="${e.id}"${e.id===sel?' selected':''}>${esc(e.name)}</option>`).join('');
+}
+async function saveTodo(){
+  const id=document.getElementById('todoId').value;
+  const aId=document.getElementById('todoAssign').value||null;
+  const aName=aId?(employees.find(e=>e.id===aId)?.name||'ทุกคน'):'ทุกคน';
+  const data={title:document.getElementById('todoTitle').value.trim(),description:document.getElementById('todoDesc').value.trim(),
+    assigned_to:aId,assigned_name:aName,created_by:currentUser?.id||null,created_by_name:currentUser?.name||'',
+    priority:document.getElementById('todoPriority').value,due_date:document.getElementById('todoDue').value||null};
+  if(!data.title){showToast('กรุณาระบุหัวข้อ','error');return;}
+  if(id){await sb.from('todos').update(data).eq('id',id);showToast('แก้ไขงานแล้ว ✅','success');}
+  else{const{data:nd}=await sb.from('todos').insert(data).select().single();await addNotif(`มอบหมายงานให้ ${aName}: ${data.title}`,'todo',nd?.id||'');showToast('เพิ่มงานแล้ว ✅','success');}
+  closeTodoModal();await loadTodos();
+}
+
+// ===== WORKS =====
+function renderWorks(){
+  let f=[...works];
+  if(currentWorkFilter==='mine'&&currentUser)f=f.filter(w=>w.employee_id===currentUser.id);
+  const el=document.getElementById('workGrid');
+  el.innerHTML=f.length?f.map(w=>{
+    const isImg=w.file_type?.startsWith('image/');
+    const prev=isImg&&w.file_path?`<img src="${w.file_path}" alt="${esc(w.title)}">`:`<span>${fileIcon(w.file_type)}</span>`;
+    const canDel=currentUser&&w.employee_id===currentUser.id;
+    return `<div class="work-card">
+      <div class="work-preview">${prev}</div>
+      <div class="work-body"><div class="work-title">${esc(w.title)}</div>${w.description?`<div class="work-desc">${esc(w.description)}</div>`:''}</div>
+      <div class="work-footer">
+        <div class="work-author"><div style="width:24px;height:24px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700">${w.employee_name.charAt(0)}</div>${esc(w.employee_name)}</div>
+        <div style="display:flex;gap:4px">
+          ${w.file_path?`<a href="${w.file_path}" target="_blank" class="btn-icon" title="เปิด/ดาวน์โหลด">⬇️</a>`:''}
+          ${canDel?`<button class="btn-icon" onclick="deleteWork('${w.id}','${w.file_path}')" style="color:var(--danger)">🗑️</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📁</div><h3>ยังไม่มีผลงาน</h3><p>อัพโหลดผลงานได้เลย</p></div>';
+}
+function filterWorks(f,el){currentWorkFilter=f;document.querySelectorAll('#page-works .tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderWorks();}
+async function deleteWork(id,filePath){
+  if(!confirm('ลบผลงานนี้?'))return;
+  if(filePath){const parts=filePath.split('/works/');if(parts[1])await sb.storage.from('works').remove([parts[1]]);}
+  await sb.from('works').delete().eq('id',id);await loadWorks();showToast('ลบผลงานแล้ว');
+}
+
+let selectedFile=null;
+function openWorkModal(){
+  document.getElementById('workTitle').value='';document.getElementById('workDesc').value='';
+  document.getElementById('workFile').value='';document.getElementById('filePreview').style.display='none';
+  selectedFile=null;document.getElementById('workModal').classList.add('open');
+}
+function closeWorkModal(){document.getElementById('workModal').classList.remove('open');}
+function fileSelected(inp){if(inp.files[0]){selectedFile=inp.files[0];showFilePrev(selectedFile);}}
+function showFilePrev(file){const p=document.getElementById('filePreview');p.style.display='flex';p.innerHTML=`<span>${fileIcon(file.type)}</span><span style="flex:1">${esc(file.name)}</span><span style="color:var(--text-muted)">${(file.size/1024).toFixed(0)} KB</span>`;}
+function dragOver(e){e.preventDefault();document.getElementById('fileDrop').classList.add('dragging');}
+function dragLeave(){document.getElementById('fileDrop').classList.remove('dragging');}
+function dropFile(e){e.preventDefault();document.getElementById('fileDrop').classList.remove('dragging');const f=e.dataTransfer.files[0];if(f){selectedFile=f;showFilePrev(f);}}
+
+async function saveWork(){
+  if(!currentUser){showToast('กรุณาเข้าสู่ระบบ','error');return;}
+  const title=document.getElementById('workTitle').value.trim();
+  if(!title){showToast('กรุณาระบุหัวข้อ','error');return;}
+  const btn=document.getElementById('uploadBtn');btn.disabled=true;btn.textContent='⏳ กำลังอัพโหลด...';
+  try{
+    let file_path='',file_name='',file_type='';
+    if(selectedFile){
+      const ext=selectedFile.name.split('.').pop();
+      const fname=`${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const{error:upErr}=await sb.storage.from('works').upload(fname,selectedFile,{contentType:selectedFile.type});
+      if(upErr)throw upErr;
+      const{data:urlData}=sb.storage.from('works').getPublicUrl(fname);
+      file_path=urlData.publicUrl; file_name=selectedFile.name; file_type=selectedFile.type;
+    }
+    const{data:nd}=await sb.from('works').insert({
+      employee_id:currentUser.id,employee_name:currentUser.name,
+      title,description:document.getElementById('workDesc').value.trim(),
+      file_path,file_name,file_type
+    }).select().single();
+    await addNotif(`📎 ${currentUser.name} อัพโหลดผลงานใหม่: ${title}`,'work',nd?.id||'');
+    showToast('อัพโหลดผลงานแล้ว 📁','success');closeWorkModal();await loadWorks();
+  }catch(err){showToast('เกิดข้อผิดพลาด: '+err.message,'error');}
+  finally{btn.disabled=false;btn.textContent='📤 อัพโหลด';}
+}
+
+// ===== EMPLOYEES =====
+function renderEmployees(){
+  const el=document.getElementById('empGrid');
+  el.innerHTML=employees.length?employees.map(e=>{
+    const myT=todos.filter(t=>t.assigned_to===e.id&&t.status!=='completed').length;
+    const myW=works.filter(w=>w.employee_id===e.id).length;
+    return `<div class="emp-card">
+      <div class="emp-avatar">${e.name.charAt(0)}</div>
+      <div class="emp-name">${esc(e.name)}</div>
+      ${e.position?`<div class="emp-pos">${esc(e.position)}</div>`:''}
+      ${e.department?`<div class="emp-dept">${esc(e.department)}</div>`:''}
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+        <span class="badge badge-blue">📋 ${myT} งานค้าง</span>
+        <span class="badge badge-purple">📁 ${myW} ผลงาน</span>
+      </div>
+      <div class="emp-actions">
+        <button class="btn btn-sm btn-outline" onclick="editEmployee('${e.id}')">✏️ แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteEmployee('${e.id}')">🗑️ ลบ</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">👥</div><h3>ยังไม่มีพนักงาน</h3></div>';
+  populateLoginSelect();
+}
+function openEmpModal(){['empId','empName','empPos','empDept'].forEach(id=>document.getElementById(id).value='');document.getElementById('empModalTitle').textContent='เพิ่มพนักงาน';document.getElementById('empModal').classList.add('open');}
+function closeEmpModal(){document.getElementById('empModal').classList.remove('open');}
+function editEmployee(id){const e=employees.find(x=>x.id===id);if(!e)return;document.getElementById('empModalTitle').textContent='แก้ไขพนักงาน';document.getElementById('empId').value=e.id;document.getElementById('empName').value=e.name;document.getElementById('empPos').value=e.position;document.getElementById('empDept').value=e.department;document.getElementById('empModal').classList.add('open');}
+async function saveEmployee(){
+  const id=document.getElementById('empId').value;
+  const data={name:document.getElementById('empName').value.trim(),position:document.getElementById('empPos').value.trim(),department:document.getElementById('empDept').value.trim()};
+  if(!data.name){showToast('กรุณาระบุชื่อ','error');return;}
+  if(id){
+    await sb.from('employees').update(data).eq('id',id);
+    if(currentUser&&currentUser.id===id){const u={...currentUser,...data};setCurrentUser(u);localStorage.setItem('companyUser',JSON.stringify(u));}
+    showToast('แก้ไขข้อมูลแล้ว ✅','success');
+  }else{
+    const{data:nd}=await sb.from('employees').insert(data).select().single();
+    await addNotif(`เพิ่มพนักงานใหม่: ${data.name}`,'employee',nd?.id||'');
+    showToast('เพิ่มพนักงานแล้ว ✅','success');
+  }
+  closeEmpModal();await loadEmployees();
+}
+async function deleteEmployee(id){
+  if(!confirm('ลบพนักงานคนนี้?'))return;
+  await sb.from('employees').delete().eq('id',id);
+  if(currentUser&&currentUser.id===id){logout();return;}
+  await loadEmployees();showToast('ลบพนักงานแล้ว');
+}
+
+// ===== NOTIFICATIONS =====
+function toggleNotifPanel(){document.getElementById('notifPanel').classList.toggle('open');}
+function closeNotifPanel(){document.getElementById('notifPanel').classList.remove('open');}
+function updateNotifBadge(){const u=notifications.filter(n=>!n.is_read).length;const b=document.getElementById('notifBadge');b.textContent=u>99?'99+':u;b.style.display=u>0?'flex':'none';}
+function renderNotifications(){
+  const el=document.getElementById('notifList');
+  el.innerHTML=notifications.length?notifications.map(n=>`
+    <div class="notif-item ${n.is_read?'':'unread'}">
+      <div class="notif-dot ${n.type}"></div>
+      <div style="flex:1"><div class="notif-text">${esc(n.message)}</div><div class="notif-time">${fmtDate(n.created_at)}</div></div>
+    </div>`).join(''):'<div class="empty-state" style="padding:24px"><div class="empty-icon">🔔</div><p>ยังไม่มีการแจ้งเตือน</p></div>';
+}
+async function markAllRead(){
+  await sb.from('notifications').update({is_read:true}).eq('is_read',false);
+  notifications.forEach(n=>n.is_read=true);updateNotifBadge();renderNotifications();
+}
+
+document.addEventListener('click',e=>{
+  const p=document.getElementById('notifPanel'),b=document.getElementById('notifBtn');
+  if(p.classList.contains('open')&&!p.contains(e.target)&&!b.contains(e.target))closeNotifPanel();
+});
+
+// ===== TOAST =====
+function showToast(msg,type='info'){
+  const c=document.getElementById('toastContainer');
+  const t=document.createElement('div');t.className=`toast ${type}`;
+  t.innerHTML=`<span>${type==='success'?'✅':type==='error'?'❌':'ℹ️'}</span> ${esc(msg)}`;
+  c.appendChild(t);setTimeout(()=>t.remove(),3500);
+}
+
+// ===== UTILS =====
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(d){if(!d)return'';try{return new Date(d).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'});}catch{return d;}}
+function isOverdue(d){return d&&new Date(d)<new Date();}
+function fileIcon(t){if(!t)return'📄';if(t.startsWith('image/'))return'🖼️';if(t.includes('pdf'))return'📕';if(t.includes('word')||t.includes('doc'))return'📝';if(t.includes('excel')||t.includes('sheet')||t.includes('xls'))return'📊';if(t.includes('text'))return'📃';return'📎';}
+
+boot();
+</script>
+</body>
+</html>
