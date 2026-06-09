@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบจัดการบริษัท</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
 <style>
   :root {
     --primary: #4f46e5;
@@ -467,20 +467,16 @@ let currentTodoFilter = 'all', currentWorkFilter = 'all';
 let selectedFile = null;
 
 async function init() {
-  socket = io();
-  socket.on('notification', n => { notifications.unshift(n); updateNotifBadge(); renderNotifications(); showToast(n.message, n.type === 'success' ? 'success' : 'info'); });
-  socket.on('employee_added', loadEmployees);
-  socket.on('employee_updated', loadEmployees);
-  socket.on('employee_deleted', loadEmployees);
-  socket.on('todo_added', loadTodos);
-  socket.on('todo_updated', loadTodos);
-  socket.on('todo_deleted', loadTodos);
-  socket.on('work_added', loadWorks);
-  socket.on('work_deleted', loadWorks);
-  socket.on('notifications_read', () => { notifications.forEach(n => n.is_read = 1); updateNotifBadge(); renderNotifications(); });
 
-  await Promise.all([loadEmployees(), loadTodos(), loadWorks(), loadNotifications()]);
+  await Promise.all([
+    loadEmployees(),
+    loadTodos(),
+    loadWorks(),
+    loadNotifications()
+  ]);
+
   checkLogin();
+
 }
 
 async function loadEmployees() {
