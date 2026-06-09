@@ -450,7 +450,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-const API = '';
+
 
 const supabaseUrl = 'https://acnzewqesgyzaoksorck.supabase.co';
 
@@ -766,20 +766,57 @@ function editEmployee(id) {
   document.getElementById('empPos').value=e.position; document.getElementById('empDept').value=e.department;
   document.getElementById('empModal').classList.add('open');
 }
-async function saveEmployee() {
-  const id=document.getElementById('empId').value;
-  const data={name:document.getElementById('empName').value.trim(),position:document.getElementById('empPos').value.trim(),department:document.getElementById('empDept').value.trim()};
-  if(!data.name){showToast('กรุณาระบุชื่อ','error');return;}
-  await fetch(id?`/api/employees/${id}`:'/api/employees',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  if(id&&currentUser&&currentUser.id===id){const u={...currentUser,...data};setCurrentUser(u);localStorage.setItem('companyUser',JSON.stringify(u));}
-  showToast(id?'แก้ไขข้อมูลแล้ว ✅':'เพิ่มพนักงานแล้ว ✅','success');
-  closeEmpModal(); await loadEmployees();
+async function saveEmployee(){
+
+ const id=document.getElementById('empId').value;
+
+ const data={
+ name:document.getElementById('empName').value.trim(),
+ position:document.getElementById('empPos').value.trim(),
+ department:document.getElementById('empDept').value.trim()
+ };
+
+ if(!data.name){
+ showToast('กรุณาระบุชื่อ','error');
+ return;
+ }
+
+ if(id){
+
+ await supabase
+ .from('employees')
+ .update(data)
+ .eq('id',id);
+
+ }else{
+
+ await supabase
+ .from('employees')
+ .insert(data);
+
+ }
+
+ closeEmpModal();
+
+ await loadEmployees();
+
+ showToast('บันทึกสำเร็จ ✅','success');
+
 }
-async function deleteEmployee(id) {
-  if(!confirm('ลบพนักงานคนนี้?'))return;
-  await fetch(`/api/employees/${id}`,{method:'DELETE'});
-  if(currentUser&&currentUser.id===id){logout();return;}
-  await loadEmployees(); showToast('ลบพนักงานแล้ว');
+}
+async function deleteEmployee(id){
+
+ if(!confirm('ลบพนักงานคนนี้?')) return;
+
+ await supabase
+ .from('employees')
+ .delete()
+ .eq('id',id);
+
+ await loadEmployees();
+
+ showToast('ลบแล้ว');
+
 }
 
 function toggleNotifPanel() { document.getElementById('notifPanel').classList.toggle('open'); }
