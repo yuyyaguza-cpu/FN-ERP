@@ -456,7 +456,7 @@ const supabaseUrl = 'https://acnzewqesgyzaoksorck.supabase.co';
 
 const supabaseKey = 'sb_publishable_9ZpprIUxbxrtCYph6qHWHw_MbBUojAq';
 
-const supabase = window.supabase.createClient(
+const db = window.supabase.createClient(
  supabaseUrl,
  supabaseKey
 );
@@ -480,7 +480,7 @@ async function init() {
 }
 
 async function loadEmployees() {
- const { data } = await supabase
+ const { data } = await db
  .from('employees')
  .select('*');
 
@@ -494,7 +494,7 @@ async function loadEmployees() {
 
 
 async function loadTodos() {
- const { data } = await supabase
+ const { data } = await db
  .from('todos')
  .select('*');
 
@@ -507,7 +507,7 @@ async function loadTodos() {
 
 
 async function loadWorks() { 
- const { data } = await supabase
+ const { data } = await db
  .from('works')
  .select('*');
 
@@ -520,7 +520,7 @@ async function loadWorks() {
 
 
 async function loadNotifications() { 
- const { data } = await supabase
+ const { data } = await db
  .from('notifications')
  .select('*');
 
@@ -552,14 +552,46 @@ function loginWithSelected() {
 }
 
 async function registerAndLogin() {
-  const name = document.getElementById('newEmpName').value.trim();
-  if (!name) { showToast('กรุณาระบุชื่อ', 'error'); return; }
-  const r = await fetch('/api/employees', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ name, position: document.getElementById('newEmpPos').value.trim(), department: document.getElementById('newEmpDept').value.trim() }) });
-  const emp = await r.json();
-  setCurrentUser(emp); localStorage.setItem('companyUser', JSON.stringify(emp));
-  document.getElementById('loginOverlay').style.display = 'none';
-  showToast(`ยินดีต้อนรับ ${name}! 🎉`, 'success');
+
+ const name =
+ document.getElementById('newEmpName').value.trim();
+
+ if (!name) {
+ showToast('กรุณาระบุชื่อ','error');
+ return;
+ }
+
+ const { data, error } = await db
+ .from('employees')
+ .insert({
+   name:name,
+   position:document.getElementById('newEmpPos').value.trim(),
+   department:document.getElementById('newEmpDept').value.trim()
+ })
+ .select()
+ .single();
+
+
+ if(error){
+ console.log(error);
+ showToast('บันทึกไม่ได้','error');
+ return;
+ }
+
+
+ setCurrentUser(data);
+
+ localStorage.setItem(
+ 'companyUser',
+ JSON.stringify(data)
+ );
+
+ document.getElementById('loginOverlay').style.display='none';
+
+ await loadEmployees();
+
+ showToast('เข้าสู่ระบบแล้ว 🎉','success');
+
 }
 
 function setCurrentUser(emp) {
@@ -783,14 +815,14 @@ async function saveEmployee(){
 
  if(id){
 
- await supabase
+ await db
  .from('employees')
  .update(data)
  .eq('id',id);
 
  }else{
 
- await supabase
+ await db
  .from('employees')
  .insert(data);
 
@@ -803,12 +835,12 @@ async function saveEmployee(){
  showToast('บันทึกสำเร็จ ✅','success');
 
 }
-}
+
 async function deleteEmployee(id){
 
  if(!confirm('ลบพนักงานคนนี้?')) return;
 
- await supabase
+ await db
  .from('employees')
  .delete()
  .eq('id',id);
