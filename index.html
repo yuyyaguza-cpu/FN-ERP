@@ -447,8 +447,20 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
 const API = '';
+
+const supabaseUrl = 'https://acnzewqesgyzaoksorck.supabase.co';
+
+const supabaseKey = 'sb_publishable_9ZpprIUxbxrtCYph6qHWHw_MbBUojAq';
+
+const supabase = window.supabase.createClient(
+ supabaseUrl,
+ supabaseKey
+);
+
 let socket, currentUser = null;
 let employees = [], todos = [], works = [], notifications = [];
 let currentTodoFilter = 'all', currentWorkFilter = 'all';
@@ -471,10 +483,56 @@ async function init() {
   checkLogin();
 }
 
-async function loadEmployees() { const r = await fetch('/api/employees'); employees = await r.json(); renderEmployees(); updateTodoAssignSelect(); updateStats(); renderDashboard(); }
-async function loadTodos() { const r = await fetch('/api/todos'); todos = await r.json(); renderTodos(); updateStats(); renderDashboard(); }
-async function loadWorks() { const r = await fetch('/api/works'); works = await r.json(); renderWorks(); updateStats(); renderDashboard(); }
-async function loadNotifications() { const r = await fetch('/api/notifications'); notifications = await r.json(); updateNotifBadge(); renderNotifications(); }
+async function loadEmployees() { 
+ const { data } = await supabase
+ .from('employees')
+ .select('*');
+
+ employees = data || [];
+
+ renderEmployees();
+ updateTodoAssignSelect();
+ updateStats();
+ renderDashboard();
+}
+
+
+async function loadTodos() { 
+ const { data } = await supabase
+ .from('todos')
+ .select('*');
+
+ todos = data || [];
+
+ renderTodos();
+ updateStats();
+ renderDashboard();
+}
+
+
+async function loadWorks() { 
+ const { data } = await supabase
+ .from('works')
+ .select('*');
+
+ works = data || [];
+
+ renderWorks();
+ updateStats();
+ renderDashboard();
+}
+
+
+async function loadNotifications() { 
+ const { data } = await supabase
+ .from('notifications')
+ .select('*');
+
+ notifications = data || [];
+
+ updateNotifBadge();
+ renderNotifications();
+}
 
 function checkLogin() {
   const saved = localStorage.getItem('companyUser');
